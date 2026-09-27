@@ -1,0 +1,295 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum Role {
+  STUDENT
+  ADMIN
+}
+
+enum ResourceType {
+  YOUTUBE
+  COURSE
+  DOCUMENTATION
+  ARTICLE
+  PRACTICE
+  GITHUB
+}
+
+enum LearningStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  COMPLETED
+}
+
+enum OpportunityCategory {
+  HACKATHON
+  INTERNSHIP
+  SCHOLARSHIP
+  COMPETITION
+  WORKSHOP
+  COURSE
+  CERTIFICATION
+  RESEARCH
+}
+
+enum ApplicationStatus {
+  SAVED
+  PREPARING
+  READY
+  APPLIED
+  SHORTLISTED
+  REJECTED
+  SELECTED
+  COMPLETED
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String
+  password  String
+  role      Role     @default(STUDENT)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  profile            StudentProfile?
+  studentSkills      StudentSkill[]
+  learningProgress   LearningProgress[]
+  assessmentAttempts AssessmentAttempt[]
+  applications       Application[]
+
+  @@map("users")
+}
+
+model StudentProfile {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  college   String?
+  degree    String?
+  branch    String?
+  year      Int?
+  bio       String?
+  goalId    String?
+  interests String[] @default([])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  goal Goal? @relation(fields: [goalId], references: [id])
+
+  @@map("student_profiles")
+}
+
+model Skill {
+  id       String  @id @default(cuid())
+  name     String  @unique
+  category String?
+
+  studentSkills     StudentSkill[]
+  opportunitySkills OpportunitySkill[]
+  questions         Question[]
+  resources         Resource[]
+  assessments       Assessment[]
+  roadmapModules    RoadmapModule[]
+
+  @@map("skills")
+}
+
+model StudentSkill {
+  id              String @id @default(cuid())
+  userId          String
+  skillId         String
+  confidence      Float  @default(0)
+  assessmentScore Float?
+  learningScore   Float?
+  practiceScore   Float?
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  skill Skill @relation(fields: [skillId], references: [id])
+
+  @@unique([userId, skillId])
+  @@map("student_skills")
+}
+
+model Goal {
+  id          String  @id @default(cuid())
+  name        String  @unique
+  description String?
+
+  profiles StudentProfile[]
+  roadmaps Roadmap[]
+
+  @@map("goals")
+}
+
+model Roadmap {
+  id          String  @id @default(cuid())
+  title       String
+  description String?
+  goalId      String?
+
+  goal    Goal?           @relation(fields: [goalId], references: [id])
+  modules RoadmapModule[]
+
+  @@map("roadmaps")
+}
+
+model RoadmapModule {
+  id               String  @id @default(cuid())
+  roadmapId        String
+  title            String
+  description      String?
+  order            Int
+  difficulty       String? // beginner, intermediate, advanced
+  estimatedMinutes Int?
+  skillId          String?
+
+  roadmap     Roadmap      @relation(fields: [roadmapId], references: [id], onDelete: Cascade)
+  skill       Skill?       @relation(fields: [skillId], references: [id])
+  resources   Resource[]
+  assessments Assessment[]
+
+  @@map("roadmap_modules")
+}
+
+model Resource {
+  id          String       @id @default(cuid())
+  title       String
+  description String?
+  provider    String?
+  url         String
+  type        ResourceType
+  duration    String?
+  difficulty  String?
+  moduleId    String?
+  skillId     String?
+
+  module RoadmapModule? @relation(fields: [moduleId], references: [id], onDelete: SetNull)
+  skill  Skill?         @relation(fields: [skillId], references: [id])
+
+  learningProgress LearningProgress[]
+
+  @@map("resources")
+}
+
+model LearningProgress {
+  id          String         @id @default(cuid())
+  userId      String
+  resourceId  String
+  status      LearningStatus @default(NOT_STARTED)
+  startedAt   DateTime?
+  completedAt DateTime?
+
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  resource Resource @relation(fields: [resourceId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, resourceId])
+  @@map("learning_progress")
+}
+
+model Assessment {
+  id          String  @id @default(cuid())
+  title       String
+  description String?
+  moduleId    String?
+  skillId     String?
+
+  module   RoadmapModule?    @relation(fields: [moduleId], references: [id], onDelete: SetNull)
+  skill    Skill?            @relation(fields: [skillId], references: [id])
+  questions Question[]
+  attempts  AssessmentAttempt[]
+
+  @@map("assessments")
+}
+
+model Question {
+  id            String  @id @default(cuid())
+  assessmentId  String
+  question      String
+  options       String[]
+  correctAnswer Int // index of correct option (0-based)
+  explanation   String?
+  difficulty    String?
+  skillId       String?
+
+  assessment Assessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+  skill      Skill?     @relation(fields: [skillId], references: [id])
+
+  @@map("questions")
+}
+
+model AssessmentAttempt {
+  id             String   @id @default(cuid())
+  userId         String
+  assessmentId   String
+  score          Int
+  totalQuestions Int
+  percentage     Float
+  answers        Json // [{questionId, selectedAnswer, isCorrect}]
+  completedAt    DateTime @default(now())
+
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  assessment Assessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+
+  @@map("assessment_attempts")
+}
+
+model Opportunity {
+  id           String              @id @default(cuid())
+  title        String
+  organization String?
+  description  String?
+  category     OpportunityCategory
+  eligibility  String?
+  deadline     DateTime?
+  eventDate    DateTime?
+  location     String?
+  mode         String? // online, offline, hybrid
+  cost         String? // free, paid
+  applyUrl     String?
+  sourceUrl    String?
+  isDemo       Boolean             @default(true)
+  isPublished  Boolean             @default(true)
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
+
+  skills       OpportunitySkill[]
+  applications Application[]
+
+  @@map("opportunities")
+}
+
+model OpportunitySkill {
+  id            String @id @default(cuid())
+  opportunityId String
+  skillId       String
+
+  opportunity Opportunity @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+  skill       Skill       @relation(fields: [skillId], references: [id])
+
+  @@unique([opportunityId, skillId])
+  @@map("opportunity_skills")
+}
+
+model Application {
+  id            String            @id @default(cuid())
+  userId        String
+  opportunityId String
+  status        ApplicationStatus @default(SAVED)
+  notes         String?
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  opportunity Opportunity @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, opportunityId])
+  @@map("applications")
+}
