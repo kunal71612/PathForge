@@ -63,9 +63,9 @@ api.interceptors.response.use(
     } else if (status === 500) {
       message = 'Internal server error. Please try again shortly.';
     } else if (error.code === 'ECONNABORTED') {
-      message = 'Request timed out. Please check your network connection.';
+      message = 'Request timed out: backend server at http://127.0.0.1:3000 did not respond in time. Please make sure the backend is running.';
     } else if (!error.response) {
-      message = 'Unable to reach backend server. Please check your internet connection.';
+      message = 'Unable to reach backend server. Please verify the backend API is running on port 3000.';
     }
 
     const customError: ApiError = new Error(message);
