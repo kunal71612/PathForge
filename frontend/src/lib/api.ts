@@ -1,6 +1,7 @@
 import axios, { AxiosError } from 'axios';
+import { getApiBaseUrl, API_TIMEOUT_MS } from '../config/api';
 
-const API_URL = import.meta.env.VITE_API_URL || '/api';
+export const API_URL = getApiBaseUrl();
 
 export interface ApiError extends Error {
   status?: number;
@@ -12,7 +13,7 @@ export const api = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
-  timeout: 15000,
+  timeout: API_TIMEOUT_MS,
 });
 
 // Automatically attach JWT token to every request
@@ -50,7 +51,7 @@ api.interceptors.response.use(
       }
     }
 
-    // Distinguish errors accurately
+    // Distinguish errors accurately without hardcoding local addresses
     let message = 'An unexpected error occurred. Please try again.';
     if (error.response?.data?.message) {
       message = error.response.data.message;
@@ -59,13 +60,14 @@ api.interceptors.response.use(
     } else if (status === 403) {
       message = 'You do not have permission to perform this action.';
     } else if (status === 404) {
-      message = 'The requested resource was not found.';
+      message = 'The requested resource was not found on the server.';
     } else if (status === 500) {
       message = 'Internal server error. Please try again shortly.';
     } else if (error.code === 'ECONNABORTED') {
-      message = 'Request timed out: backend server at http://127.0.0.1:3000 did not respond in time. Please make sure the backend is running.';
+      message =
+        'Request timed out. The backend server took too long to respond. If hosted on a free cloud tier (like Render), it may take up to 60 seconds to wake up from sleep. Please try again in a moment.';
     } else if (!error.response) {
-      message = 'Unable to reach backend server. Please verify the backend API is running on port 3000.';
+      message = `Unable to reach backend server at ${API_URL}. Please verify the backend is running and that CORS allows requests from this domain.`;
     }
 
     const customError: ApiError = new Error(message);

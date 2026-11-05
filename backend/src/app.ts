@@ -11,20 +11,63 @@ import { router } from './routes';
 
 const app = express();
 
-// Security
+// Security headers
 app.use(
   helmet({
     contentSecurityPolicy: false, // Allow fonts and assets from CDNs
   })
 );
 
+// Allowed CORS origins
+const allowedOrigins = new Set<string>();
+
+// Add configured frontend URL(s) from environment (supports comma-separated list)
+if (config.frontendUrl) {
+  config.frontendUrl.split(',').forEach((url) => {
+    const trimmed = url.trim().replace(/\/+$/, '');
+    if (trimmed) allowedOrigins.add(trimmed);
+  });
+}
+
+// Standard local development origins
+const devOrigins = [
+  'http://localhost:5173',
+  'http://127.0.0.1:5173',
+  'http://localhost:3000',
+  'http://127.0.0.1:3000',
+];
+devOrigins.forEach((origin) => allowedOrigins.add(origin));
+
 app.use(
   cors({
     origin: (origin, callback) => {
-      // Allow local development ports and requests with no origin (e.g. mobile/same-origin)
-      callback(null, true);
+      // Allow requests with no origin (e.g. mobile apps, curl, server-to-server, health probes)
+      if (!origin) {
+        return callback(null, true);
+      }
+
+      const normalizedOrigin = origin.trim().replace(/\/+$/, '');
+
+      // Check against explicit allowed list
+      if (allowedOrigins.has(normalizedOrigin)) {
+        return callback(null, true);
+      }
+
+      // In non-production environments, allow any localhost/127.0.0.1 origin
+      if (config.nodeEnv !== 'production') {
+        if (/^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(normalizedOrigin)) {
+          return callback(null, true);
+        }
+      }
+
+      // Disallow unapproved origins in production
+      return callback(
+        new Error(`CORS blocked for origin: ${origin}. If this is your deployed frontend, add it to FRONTEND_URL in backend environment variables.`)
+      );
     },
     credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
   })
 );
 
